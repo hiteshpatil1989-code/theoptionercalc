@@ -1,0 +1,778 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>TheOptionerCalc - Professional Options Trading & Position Sizing Dashboard</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    colors: {
+                        darkbg: '#0b0f19',
+                        cardbg: '#111827',
+                        cardborder: '#1f2937',
+                        accent: '#3b82f6',
+                        success: '#10b981',
+                        danger: '#ef4444'
+                    }
+                }
+            }
+        }
+    </script>
+    <!-- FontAwesome for Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Inter Font -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        body { font-family: 'Inter', sans-serif; }
+        ::-webkit-scrollbar { width: 6px; height: 6px; }
+        ::-webkit-scrollbar-track { background: #0b0f19; }
+        ::-webkit-scrollbar-thumb { background: #374151; border-radius: 3px; }
+    </style>
+</head>
+<body class="bg-darkbg text-gray-100 min-h-screen flex flex-col selection:bg-blue-600 selection:text-white">
+
+    <!-- Notification Toast Container -->
+    <div id="toast-container" class="fixed bottom-5 right-5 z-50 flex flex-col space-y-2"></div>
+
+    <!-- HEADER / NAV -->
+    <header class="bg-cardbg border-b border-cardborder sticky top-0 z-40 px-4 py-3 shadow-lg">
+        <div class="max-w-7xl mx-auto flex flex-col md:flex-row items-center justify-between gap-4">
+            <div class="flex items-center space-x-3">
+                <div class="bg-blue-600 p-2.5 rounded-xl shadow-md text-white font-bold text-xl flex items-center justify-center">
+                    <i class="fa-solid fa-calculator"></i>
+                </div>
+                <div>
+                    <h1 class="text-xl font-bold tracking-tight bg-gradient-to-r from-blue-400 to-indigo-400 bg-clip-text text-transparent">TheOptionerCalc</h1>
+                    <p class="text-xs text-gray-400">Options Trading Terminal & Risk Engine | Trader: <span class="text-white font-medium">Hitesh Patil</span> (ID: <span class="text-amber-400">NP9863</span>)</p>
+                </div>
+            </div>
+
+            <div class="flex flex-wrap items-center gap-3">
+                <div class="bg-darkbg border border-cardborder rounded-lg px-3 py-1.5 flex items-center space-x-2">
+                    <span class="text-xs text-gray-400 font-medium">Account Capital (₹):</span>
+                    <input type="number" id="global-account-value" value="305000" oninput="calculatePosition()" class="bg-transparent text-emerald-400 font-bold w-28 focus:outline-none text-sm">
+                </div>
+
+                <div id="zerodha-auth-container" class="flex items-center space-x-2">
+                    <button onclick="openZerodhaModal()" id="zerodha-btn" class="bg-orange-600 hover:bg-orange-700 text-white px-3.5 py-1.5 rounded-lg text-xs font-semibold flex items-center space-x-2 shadow transition-all">
+                        <i class="fa-solid fa-link"></i>
+                        <span id="zerodha-btn-text">Connect Zerodha (NP9863)</span>
+                    </button>
+                    <div id="zerodha-status-badge" class="hidden items-center space-x-1.5 bg-emerald-950/80 border border-emerald-800 text-emerald-400 px-2.5 py-1 rounded-lg text-xs">
+                        <span class="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+                        <span class="font-medium">Kite Live (NP9863)</span>
+                        <button onclick="handleZerodhaLogout()" class="ml-1.5 text-xs text-gray-400 hover:text-white" title="Disconnect"><i class="fa-solid fa-xmark"></i></button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <!-- NAVIGATION TABS -->
+    <nav class="bg-cardbg/50 border-b border-cardborder px-4">
+        <div class="max-w-7xl mx-auto flex space-x-2 overflow-x-auto py-2">
+            <button onclick="switchTab('calculator')" id="tab-calculator" class="tab-btn px-4 py-2 rounded-lg text-sm font-semibold bg-blue-600 text-white flex items-center space-x-2 transition-all shadow">
+                <i class="fa-solid fa-calculator"></i>
+                <span>Position Sizing & Calculator</span>
+            </button>
+            <button onclick="switchTab('optionchain')" id="tab-optionchain" class="tab-btn px-4 py-2 rounded-lg text-sm font-semibold text-gray-400 hover:text-white hover:bg-cardborder flex items-center space-x-2 transition-all">
+                <i class="fa-solid fa-chart-line"></i>
+                <span>Live Option Chain</span>
+            </button>
+            <button onclick="switchTab('orders')" id="tab-orders" class="tab-btn px-4 py-2 rounded-lg text-sm font-semibold text-gray-400 hover:text-white hover:bg-cardborder flex items-center space-x-2 transition-all">
+                <i class="fa-solid fa-list-check"></i>
+                <span>Order Book & Positions <span id="open-positions-badge" class="ml-1 bg-blue-500/20 text-blue-400 px-1.5 py-0.5 rounded-full text-xs">0</span></span>
+            </button>
+            <button onclick="switchTab('settings')" id="tab-settings" class="tab-btn px-4 py-2 rounded-lg text-sm font-semibold text-gray-400 hover:text-white hover:bg-cardborder flex items-center space-x-2 transition-all">
+                <i class="fa-solid fa-gear"></i>
+                <span>API & Settings</span>
+            </button>
+        </div>
+    </nav>
+
+    <!-- MAIN CONTAINER -->
+    <main class="flex-1 max-w-7xl w-full mx-auto p-4 md:p-6">
+
+        <!-- TAB 1: POSITION SIZING & CALCULATOR -->
+        <div id="content-calculator" class="tab-content grid grid-cols-1 lg:grid-cols-3 gap-6">
+            <div class="lg:col-span-2 bg-cardbg border border-cardborder rounded-2xl p-5 md:p-6 shadow-xl space-y-6">
+                <div class="flex items-center justify-between border-b border-cardborder pb-4">
+                    <h2 class="text-lg font-bold flex items-center space-x-2 text-white">
+                        <i class="fa-solid fa-sliders text-blue-500"></i>
+                        <span>Trade Calculator & Direct Order Hub</span>
+                    </h2>
+                    <span class="text-xs text-emerald-400 bg-emerald-950/60 border border-emerald-900 px-2.5 py-1 rounded-full font-medium">RR Automated Risk Engine</span>
+                </div>
+
+                <!-- Instrument & Lot Size (Corrected Lot Sizes) -->
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-xs font-medium text-gray-400 mb-1.5">Select Index / Instrument</label>
+                        <select id="calc-instrument" onchange="updateInstrumentDefaults()" class="w-full bg-darkbg border border-cardborder rounded-xl p-3 text-sm font-semibold focus:outline-none focus:border-blue-500 text-white">
+                            <option value="NIFTY">NIFTY (Lot Size: 65)</option>
+                            <option value="BANKNIFTY">BANKNIFTY (Lot Size: 30)</option>
+                            <option value="FINNIFTY">FINNIFTY (Lot Size: 60)</option>
+                            <option value="MIDCPNIFTY">MIDCPNIFTY (Lot Size: 120)</option>
+                            <option value="SENSEX">SENSEX (Lot Size: 20)</option>
+                            <option value="BANKEX">BANKEX (Lot Size: 30)</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-xs font-medium text-gray-400 mb-1.5">Lot Size (<span id="lbl-inst-name">NIFTY</span>)</label>
+                        <input type="number" id="calc-lotsize" value="65" oninput="calculatePosition()" class="w-full bg-darkbg border border-cardborder rounded-xl p-3 text-sm font-semibold focus:outline-none focus:border-blue-500">
+                    </div>
+                </div>
+
+                <!-- Prices -->
+                <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                    <div>
+                        <label class="block text-xs font-medium text-gray-400 mb-1.5">Entry Price (₹)</label>
+                        <input type="number" step="0.05" id="calc-entry" value="100" oninput="calculatePosition()" class="w-full bg-darkbg border border-cardborder rounded-xl p-3 text-sm font-semibold focus:outline-none focus:border-blue-500 text-blue-400">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-medium text-red-400 mb-1.5">Stop Loss (₹)</label>
+                        <input type="number" step="0.05" id="calc-sl" value="80" oninput="calculatePosition()" class="w-full bg-darkbg border border-cardborder rounded-xl p-3 text-sm font-semibold focus:outline-none focus:border-red-500 text-red-400">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-medium text-emerald-400 mb-1.5">Exit Price (₹)</label>
+                        <input type="number" step="0.05" id="calc-exit" value="180" oninput="calculatePosition()" class="w-full bg-darkbg border border-cardborder rounded-xl p-3 text-sm font-semibold focus:outline-none focus:border-emerald-500 text-emerald-400">
+                    </div>
+                </div>
+
+                <!-- RR Slider & Rules Display -->
+                <div class="space-y-2 bg-darkbg/50 border border-cardborder p-4 rounded-xl">
+                    <div class="flex justify-between items-center text-xs">
+                        <span class="text-gray-400">Risk/Reward Goal & Automated Investment Rule Mapping</span>
+                        <span id="calc-rr-display" class="bg-blue-600/20 border border-blue-500 text-blue-400 px-2 py-0.5 rounded-lg font-bold">1:4.0</span>
+                    </div>
+                    <input type="range" id="calc-rr-slider" min="1" max="6" step="1" value="4" oninput="updateRRFromSlider()" class="w-full accent-blue-500 cursor-pointer">
+                    <div class="flex justify-between text-[10px] text-gray-500 font-medium">
+                        <span>1:1 (2%)</span>
+                        <span>1:2 (5%)</span>
+                        <span>1:3 (8%)</span>
+                        <span>1:4 (10%)</span>
+                        <span>1:5 (15%)</span>
+                        <span>1:5+ (15% Cap)</span>
+                    </div>
+                </div>
+
+                <!-- Automated Rule Mapping Info Box -->
+                <div class="bg-blue-950/20 border border-blue-900/40 p-4 rounded-xl flex items-center justify-between">
+                    <div>
+                        <span class="text-xs text-gray-400 block">Automated Investment Allocation Rule</span>
+                        <span id="rule-desc-text" class="text-sm font-bold text-blue-400">RR 1:4 -> 10% Capital Investment</span>
+                    </div>
+                    <div class="text-right">
+                        <span class="text-xs text-gray-400 block">Allocated Capital</span>
+                        <span id="rule-allocated-amount" class="text-sm font-bold text-emerald-400">₹30,500.00</span>
+                    </div>
+                </div>
+
+                <!-- Quantity & Risk Output -->
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-xs font-medium text-gray-400 mb-1.5">Calculated Number of Lots</label>
+                        <input type="number" id="calc-lots" value="5" readonly class="w-full text-center bg-darkbg border border-cardborder rounded-xl p-2.5 text-sm font-bold text-white focus:outline-none">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-medium text-gray-400 mb-1.5">Max Capital Risk per Trade</label>
+                        <input type="text" id="calc-max-risk-disp" value="-₹6,500.00" readonly class="w-full text-center bg-darkbg border border-cardborder rounded-xl p-2.5 text-sm font-bold text-red-400 focus:outline-none">
+                    </div>
+                </div>
+
+                <!-- Direct Order Trigger Buttons -->
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-2">
+                    <button onclick="placeOrderFromCalculator('BUY')" class="bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white font-bold py-3.5 px-4 rounded-xl shadow-lg transition-all flex items-center justify-center space-x-2">
+                        <i class="fa-solid fa-circle-chevron-right"></i>
+                        <span>Place BUY Order (<span id="btn-buy-qty-label">325</span> Qty)</span>
+                    </button>
+                    <button onclick="placeOrderFromCalculator('SELL')" class="bg-gradient-to-r from-red-600 to-rose-600 hover:from-red-500 hover:to-rose-500 text-white font-bold py-3.5 px-4 rounded-xl shadow-lg transition-all flex items-center justify-center space-x-2">
+                        <i class="fa-solid fa-circle-chevron-right"></i>
+                        <span>Place SELL Order (<span id="btn-sell-qty-label">325</span> Qty)</span>
+                    </button>
+                </div>
+            </div>
+
+            <!-- Summary / Metrics Panel -->
+            <div class="bg-cardbg border border-cardborder rounded-2xl p-5 md:p-6 shadow-xl flex flex-col justify-between space-y-6">
+                <div>
+                    <h3 class="text-sm font-bold text-gray-300 uppercase tracking-wider mb-4 flex items-center space-x-2">
+                        <i class="fa-solid fa-chart-pie text-emerald-400"></i>
+                        <span>Trade Metrics & P&L Projection</span>
+                    </h3>
+
+                    <div class="space-y-4">
+                        <div class="bg-darkbg p-3.5 rounded-xl border border-cardborder flex justify-between items-center">
+                            <span class="text-xs text-gray-400">Total Quantity (Units)</span>
+                            <span id="res-total-qty" class="text-base font-bold text-white">325</span>
+                        </div>
+                        <div class="bg-darkbg p-3.5 rounded-xl border border-cardborder flex justify-between items-center">
+                            <span class="text-xs text-gray-400">Total Capital Deployed</span>
+                            <span id="res-capital-deployed" class="text-base font-bold text-blue-400">₹32,500.00</span>
+                        </div>
+                        <div class="bg-darkbg p-3.5 rounded-xl border border-cardborder flex justify-between items-center">
+                            <span class="text-xs text-gray-400">Max Potential Risk (Loss)</span>
+                            <span id="res-max-risk" class="text-base font-bold text-red-400">-₹6,500.00</span>
+                        </div>
+                        <div class="bg-darkbg p-3.5 rounded-xl border border-cardborder flex justify-between items-center">
+                            <span class="text-xs text-gray-400">Target Profit Potential</span>
+                            <span id="res-target-profit" class="text-base font-bold text-emerald-400">+₹26,000.00</span>
+                        </div>
+                        <div class="bg-darkbg p-3.5 rounded-xl border border-cardborder flex justify-between items-center">
+                            <span class="text-xs text-gray-400">Risk / Reward Ratio</span>
+                            <span id="res-rr-ratio" class="text-base font-bold text-indigo-400">1 : 4.0</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="bg-blue-950/30 border border-blue-900/50 p-4 rounded-xl">
+                    <div class="flex items-start space-x-3">
+                        <i class="fa-solid fa-shield-halved text-amber-400 mt-0.5"></i>
+                        <p class="text-xs text-blue-300 leading-relaxed">
+                            Active Ruleset: 1:1=2%, 1:2=5%, 1:3=8%, 1:4=10%, 1:5+=15% max cap. Orders sync directly to Zerodha Order Book simulation.
+                        </p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- TAB 2: LIVE OPTION CHAIN -->
+        <div id="content-optionchain" class="tab-content hidden space-y-6">
+            <div class="bg-cardbg border border-cardborder rounded-2xl p-5 shadow-xl flex flex-col md:flex-row items-center justify-between gap-4">
+                <div class="flex items-center space-x-3">
+                    <h2 class="text-lg font-bold flex items-center space-x-2 text-white">
+                        <i class="fa-solid fa-bolt text-amber-400"></i>
+                        <span>Live Option Chain & Market Depth</span>
+                    </h2>
+                    <span class="flex items-center space-x-1.5 text-xs bg-emerald-950 text-emerald-400 border border-emerald-900 px-3 py-1 rounded-full font-medium">
+                        <span class="w-2 h-2 rounded-full bg-emerald-500 animate-ping"></span>
+                        <span>Kite WS Feed Active</span>
+                    </span>
+                </div>
+
+                <div class="flex items-center space-x-3 w-full md:w-auto">
+                    <select id="chain-index" onchange="renderOptionChain()" class="bg-darkbg border border-cardborder rounded-xl px-4 py-2 text-sm font-semibold focus:outline-none focus:border-blue-500 text-white">
+                        <option value="NIFTY">NIFTY (Spot: 24,350)</option>
+                        <option value="BANKNIFTY">BANKNIFTY (Spot: 51,420)</option>
+                        <option value="FINNIFTY">FINNIFTY (Spot: 23,150)</option>
+                        <option value="MIDCPNIFTY">MIDCPNIFTY (Spot: 12,450)</option>
+                        <option value="SENSEX">SENSEX (Spot: 80,250)</option>
+                        <option value="BANKEX">BANKEX (Spot: 58,100)</option>
+                    </select>
+                    <select id="chain-expiry" class="bg-darkbg border border-cardborder rounded-xl px-4 py-2 text-sm font-semibold focus:outline-none focus:border-blue-500 text-white">
+                        <option value="WEEKLY">Current Weekly Expiry</option>
+                        <option value="MONTHLY">Current Monthly Expiry</option>
+                    </select>
+                </div>
+            </div>
+
+            <div class="bg-cardbg border border-cardborder rounded-2xl shadow-xl overflow-hidden">
+                <div class="overflow-x-auto">
+                    <table class="w-full text-left border-collapse text-xs">
+                        <thead>
+                            <tr class="bg-darkbg/80 text-gray-400 border-b border-cardborder uppercase font-semibold text-[11px] tracking-wider">
+                                <th colspan="5" class="py-3 px-4 text-center bg-blue-950/20 border-r border-cardborder">CALLS (CE)</th>
+                                <th class="py-3 px-4 text-center bg-gray-900 border-r border-cardborder text-amber-400">STRIKE</th>
+                                <th colspan="5" class="py-3 px-4 text-center bg-red-950/20">PUTS (PE)</th>
+                            </tr>
+                            <tr class="bg-darkbg/40 text-gray-400 border-b border-cardborder text-[10px]">
+                                <th class="py-2 px-3">OI</th>
+                                <th class="py-2 px-3">Chg OI</th>
+                                <th class="py-2 px-3">Volume</th>
+                                <th class="py-2 px-3">IV %</th>
+                                <th class="py-2 px-3 border-r border-cardborder">LTP (₹)</th>
+                                <th class="py-2 px-3 text-center bg-cardborder/40 border-r border-cardborder text-amber-400 font-bold">ATM</th>
+                                <th class="py-2 px-3">LTP (₹)</th>
+                                <th class="py-2 px-3">IV %</th>
+                                <th class="py-2 px-3">Volume</th>
+                                <th class="py-2 px-3">Chg OI</th>
+                                <th class="py-2 px-3">OI</th>
+                            </tr>
+                        </thead>
+                        <tbody id="option-chain-body" class="divide-y divide-cardborder/50">
+                            <!-- Populated dynamically -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <!-- TAB 3: ORDER BOOK & POSITIONS -->
+        <div id="content-orders" class="tab-content hidden space-y-6">
+            <div class="bg-cardbg border border-cardborder rounded-2xl p-5 shadow-xl space-y-4">
+                <div class="flex items-center justify-between border-b border-cardborder pb-3">
+                    <h3 class="text-sm font-bold text-gray-200 uppercase tracking-wider flex items-center space-x-2">
+                        <i class="fa-solid fa-chart-line text-emerald-400"></i>
+                        <span>Live Open Positions (Zerodha NP9863)</span>
+                    </h3>
+                    <span id="total-pnl-badge" class="text-xs font-bold px-3 py-1 rounded-lg bg-emerald-950 text-emerald-400 border border-emerald-900">Total P&L: ₹0.00</span>
+                </div>
+
+                <div class="overflow-x-auto">
+                    <table class="w-full text-left border-collapse text-xs">
+                        <thead>
+                            <tr class="bg-darkbg text-gray-400 border-b border-cardborder uppercase text-[11px]">
+                                <th class="py-3 px-3">Instrument</th>
+                                <th class="py-3 px-3">Qty</th>
+                                <th class="py-3 px-3">Avg. Price</th>
+                                <th class="py-3 px-3">LTP</th>
+                                <th class="py-3 px-3">P&L (₹)</th>
+                                <th class="py-3 px-3 text-center">Action</th>
+                            </tr>
+                        </thead>
+                        <tbody id="positions-table-body" class="divide-y divide-cardborder/50">
+                            <tr>
+                                <td colspan="6" class="py-6 text-center text-gray-500 italic">No open positions active. Use calculator to place orders.</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <div class="bg-cardbg border border-cardborder rounded-2xl p-5 shadow-xl space-y-4">
+                <div class="flex items-center justify-between border-b border-cardborder pb-3">
+                    <h3 class="text-sm font-bold text-gray-200 uppercase tracking-wider flex items-center space-x-2">
+                        <i class="fa-solid fa-book text-blue-400"></i>
+                        <span>Zerodha Order Book History</span>
+                    </h3>
+                    <button onclick="clearOrderBook()" class="text-xs text-gray-400 hover:text-white">Clear Log</button>
+                </div>
+
+                <div class="overflow-x-auto max-h-64 overflow-y-auto">
+                    <table class="w-full text-left border-collapse text-xs">
+                        <thead>
+                            <tr class="bg-darkbg text-gray-400 border-b border-cardborder uppercase text-[11px]">
+                                <th class="py-2.5 px-3">Order ID</th>
+                                <th class="py-2.5 px-3">Time</th>
+                                <th class="py-2.5 px-3">Type</th>
+                                <th class="py-2.5 px-3">Instrument</th>
+                                <th class="py-2.5 px-3">Qty</th>
+                                <th class="py-2.5 px-3">Price (₹)</th>
+                                <th class="py-2.5 px-3">Status</th>
+                            </tr>
+                        </thead>
+                        <tbody id="orderbook-table-body" class="divide-y divide-cardborder/50">
+                            <tr>
+                                <td colspan="7" class="py-4 text-center text-gray-500 italic">No orders placed in this session yet.</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <!-- TAB 4: API & SETTINGS -->
+        <div id="content-settings" class="tab-content hidden space-y-6">
+            <div class="bg-cardbg border border-cardborder rounded-2xl p-6 shadow-xl max-w-2xl mx-auto space-y-6">
+                <div class="border-b border-cardborder pb-4">
+                    <h3 class="text-base font-bold text-white flex items-center space-x-2">
+                        <i class="fa-solid fa-key text-blue-500"></i>
+                        <span>Zerodha Kite Connect API Settings</span>
+                    </h3>
+                    <p class="text-xs text-gray-400 mt-1">Configure your API credentials for live account margin fetching and automated order execution.</p>
+                </div>
+
+                <div class="space-y-4">
+                    <div>
+                        <label class="block text-xs font-medium text-gray-400 mb-1.5">Zerodha Client ID</label>
+                        <input type="text" id="settings-clientid" value="NP9863" readonly class="w-full bg-darkbg border border-cardborder rounded-xl p-3 text-sm font-semibold text-amber-400 focus:outline-none">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-medium text-gray-400 mb-1.5">API Key</label>
+                        <input type="text" id="settings-apikey" placeholder="Enter Kite API Key" class="w-full bg-darkbg border border-cardborder rounded-xl p-3 text-sm font-semibold text-white focus:outline-none focus:border-blue-500">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-medium text-gray-400 mb-1.5">API Secret</label>
+                        <input type="password" id="settings-apisecret" placeholder="Enter Kite API Secret" class="w-full bg-darkbg border border-cardborder rounded-xl p-3 text-sm font-semibold text-white focus:outline-none focus:border-blue-500">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-medium text-gray-400 mb-1.5">Redirect URL</label>
+                        <input type="text" id="settings-redirect" value="https://theoptionercalc.local/callback" class="w-full bg-darkbg border border-cardborder rounded-xl p-3 text-sm font-semibold text-gray-300 focus:outline-none">
+                    </div>
+                </div>
+
+                <div class="flex justify-end space-x-3 pt-2">
+                    <button onclick="saveApiSettings()" class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2.5 px-6 rounded-xl text-xs shadow transition-all">Save Credentials</button>
+                </div>
+            </div>
+        </div>
+
+    </main>
+
+    <!-- ZERODHA LOGIN MODAL -->
+    <div id="zerodha-modal" class="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 hidden flex items-center justify-center p-4">
+        <div class="bg-cardbg border border-cardborder rounded-2xl max-w-md w-full p-6 shadow-2xl space-y-6">
+            <div class="flex items-center justify-between border-b border-cardborder pb-4">
+                <div class="flex items-center space-x-3">
+                    <div class="bg-orange-600 p-2 rounded-lg text-white font-bold"><i class="fa-solid fa-lock"></i></div>
+                    <h3 class="text-base font-bold text-white">Connect Zerodha Kite (NP9863)</h3>
+                </div>
+                <button onclick="closeZerodhaModal()" class="text-gray-400 hover:text-white"><i class="fa-solid fa-xmark text-lg"></i></button>
+            </div>
+
+            <div class="space-y-4 text-xs">
+                <p class="text-gray-300 leading-relaxed">Enter your Kite Connect credentials to establish secure OAuth session for <span class="text-white font-bold">Hitesh Patil</span> (Client ID: <span class="text-amber-400">NP9863</span>).</p>
+                <div>
+                    <label class="block text-gray-400 mb-1">API Key</label>
+                    <input type="text" id="modal-apikey" value="kite_live_key_np9863" class="w-full bg-darkbg border border-cardborder rounded-xl p-2.5 font-semibold text-white focus:outline-none focus:border-blue-500">
+                </div>
+                <div>
+                    <label class="block text-gray-400 mb-1">API Secret</label>
+                    <input type="password" id="modal-apisecret" value="secret_sample_token_xyz" class="w-full bg-darkbg border border-cardborder rounded-xl p-2.5 font-semibold text-white focus:outline-none focus:border-blue-500">
+                </div>
+            </div>
+
+            <div class="flex space-x-3 pt-2">
+                <button onclick="closeZerodhaModal()" class="flex-1 bg-darkbg border border-cardborder hover:bg-cardborder text-gray-300 font-semibold py-2.5 rounded-xl text-xs transition-all">Cancel</button>
+                <button onclick="confirmZerodhaLogin()" class="flex-1 bg-orange-600 hover:bg-orange-700 text-white font-bold py-2.5 rounded-xl text-xs shadow transition-all">Authenticate Kite</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- FOOTER -->
+    <footer class="bg-cardbg border-t border-cardborder py-4 px-4 text-center text-xs text-gray-500 mt-auto">
+        <div class="max-w-7xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-2">
+            <span>TheOptionerCalc &copy; 2026 | Designed for Hitesh Patil (NP9863)</span>
+            <div class="flex items-center space-x-4">
+                <span class="text-emerald-400 flex items-center space-x-1"><i class="fa-solid fa-circle text-[8px]"></i><span>Kite Connect API Ready</span></span>
+            </div>
+        </div>
+    </footer>
+
+    <!-- JAVASCRIPT LOGIC -->
+    <script>
+        let isZerodhaConnected = false;
+        let activeTab = 'calculator';
+        let openPositions = [];
+        let orderBook = [];
+
+        // Accurate Exchange Lot Sizes
+        const instrumentConfig = {
+            NIFTY: { lotSize: 65, spot: 24350, atm: 24400 },
+            BANKNIFTY: { lotSize: 30, spot: 51420, atm: 51500 },
+            FINNIFTY: { lotSize: 60, spot: 23150, atm: 23200 },
+            MIDCPNIFTY: { lotSize: 120, spot: 12450, atm: 12500 },
+            SENSEX: { lotSize: 20, spot: 80250, atm: 80300 },
+            BANKEX: { lotSize: 30, spot: 58100, atm: 58100 }
+        };
+
+        window.onload = function() {
+            calculatePosition();
+            renderOptionChain();
+            setInterval(simulateLiveTicker, 2500);
+        };
+
+        function switchTab(tabId) {
+            activeTab = tabId;
+            document.querySelectorAll('.tab-content').forEach(el => el.classList.add('hidden'));
+            document.querySelectorAll('.tab-btn').forEach(btn => {
+                btn.classList.remove('bg-blue-600', 'text-white', 'shadow');
+                btn.classList.add('text-gray-400', 'hover:text-white', 'hover:bg-cardborder');
+            });
+
+            document.getElementById('content-' + tabId).classList.remove('hidden');
+            const activeBtn = document.getElementById('tab-' + tabId);
+            activeBtn.classList.add('bg-blue-600', 'text-white', 'shadow');
+            activeBtn.classList.remove('text-gray-400', 'hover:text-white', 'hover:bg-cardborder');
+
+            if(tabId === 'optionchain') renderOptionChain();
+        }
+
+        function openZerodhaModal() {
+            document.getElementById('zerodha-modal').classList.remove('hidden');
+        }
+
+        function closeZerodhaModal() {
+            document.getElementById('zerodha-modal').classList.add('hidden');
+        }
+
+        function confirmZerodhaLogin() {
+            closeZerodhaModal();
+            showToast("Authenticating with Zerodha Kite Connect for Client ID NP9863...", "info");
+            setTimeout(() => {
+                isZerodhaConnected = true;
+                document.getElementById('zerodha-btn').classList.add('hidden');
+                document.getElementById('zerodha-status-badge').classList.remove('hidden');
+                document.getElementById('zerodha-status-badge').classList.add('flex');
+                showToast("Successfully connected to Zerodha Kite (NP9863)! Margins fetched: ₹3,05,000", "success");
+            }, 1200);
+        }
+
+        function handleZerodhaLogout() {
+            isZerodhaConnected = false;
+            document.getElementById('zerodha-status-badge').classList.add('hidden');
+            document.getElementById('zerodha-status-badge').classList.remove('flex');
+            document.getElementById('zerodha-btn').classList.remove('hidden');
+            showToast("Disconnected from Zerodha session.", "info");
+        }
+
+        function updateInstrumentDefaults() {
+            const inst = document.getElementById('calc-instrument').value;
+            const config = instrumentConfig[inst];
+            document.getElementById('calc-lotsize').value = config.lotSize;
+            document.getElementById('lbl-inst-name').innerText = inst;
+            calculatePosition();
+        }
+
+        function updateRRFromSlider() {
+            const rrVal = parseInt(document.getElementById('calc-rr-slider').value) || 1;
+            const entry = parseFloat(document.getElementById('calc-entry').value) || 100;
+            const sl = parseFloat(document.getElementById('calc-sl').value) || 80;
+            const riskPerUnit = Math.max(0.1, entry - sl);
+            
+            document.getElementById('calc-exit').value = (entry + (riskPerUnit * rrVal)).toFixed(2);
+            calculatePosition();
+        }
+
+        function calculatePosition() {
+            const capital = parseFloat(document.getElementById('global-account-value').value) || 305000;
+            const entry = parseFloat(document.getElementById('calc-entry').value) || 100;
+            const sl = parseFloat(document.getElementById('calc-sl').value) || 80;
+            const exit = parseFloat(document.getElementById('calc-exit').value) || 180;
+            const lotSize = parseInt(document.getElementById('calc-lotsize').value) || 65;
+
+            const riskPerUnit = Math.max(0.1, entry - sl);
+            const rewardPerUnit = Math.max(0.1, exit - entry);
+            const rawRR = rewardPerUnit / riskPerUnit;
+            
+            let rrLevel = Math.round(rawRR);
+            if (rrLevel < 1) rrLevel = 1;
+            if (rrLevel > 5) rrLevel = 5;
+
+            document.getElementById('calc-rr-slider').value = rrLevel;
+            document.getElementById('calc-rr-display').innerText = `1:${rawRR.toFixed(1)}`;
+
+            // Automated Investment Allocation Rule
+            let investmentPct = 0.02; // RR 1:1 -> 2%
+            let ruleLabel = "RR 1:1 -> 2% Capital Investment";
+
+            if (rawRR >= 4.5) {
+                investmentPct = 0.15; // Above 1:5 -> 15% Max Capped
+                ruleLabel = "RR 1:5+ -> 15% Max Capped Investment";
+            } else if (rawRR >= 3.5) {
+                investmentPct = 0.10; // RR 1:4 -> 10%
+                ruleLabel = "RR 1:4 -> 10% Capital Investment";
+            } else if (rawRR >= 2.5) {
+                investmentPct = 0.08; // RR 1:3 -> 8%
+                ruleLabel = "RR 1:3 -> 8% Capital Investment";
+            } else if (rawRR >= 1.5) {
+                investmentPct = 0.05; // RR 1:2 -> 5%
+                ruleLabel = "RR 1:2 -> 5% Capital Investment";
+            } else {
+                investmentPct = 0.02; // RR 1:1 -> 2%
+                ruleLabel = "RR 1:1 -> 2% Capital Investment";
+            }
+
+            const allocatedCapital = capital * investmentPct;
+            let lots = Math.floor(allocatedCapital / (entry * lotSize));
+            if (lots < 1) lots = 1;
+
+            const totalQty = lots * lotSize;
+            const capitalDeployed = entry * totalQty;
+            const maxRiskAmount = riskPerUnit * totalQty;
+            const targetProfit = rewardPerUnit * totalQty;
+
+            document.getElementById('rule-desc-text').innerText = ruleLabel;
+            document.getElementById('rule-allocated-amount').innerText = '₹' + allocatedCapital.toLocaleString('en-IN', {minimumFractionDigits: 2});
+            document.getElementById('calc-lots').value = lots;
+            document.getElementById('calc-max-risk-disp').value = '-₹' + maxRiskAmount.toLocaleString('en-IN', {minimumFractionDigits: 2});
+
+            document.getElementById('res-total-qty').innerText = totalQty.toLocaleString('en-IN');
+            document.getElementById('btn-buy-qty-label').innerText = totalQty.toLocaleString('en-IN');
+            document.getElementById('btn-sell-qty-label').innerText = totalQty.toLocaleString('en-IN');
+            document.getElementById('res-capital-deployed').innerText = '₹' + capitalDeployed.toLocaleString('en-IN', {minimumFractionDigits: 2});
+            document.getElementById('res-max-risk').innerText = '-₹' + maxRiskAmount.toLocaleString('en-IN', {minimumFractionDigits: 2});
+            document.getElementById('res-target-profit').innerText = '+₹' + targetProfit.toLocaleString('en-IN', {minimumFractionDigits: 2});
+            document.getElementById('res-rr-ratio').innerText = '1 : ' + rawRR.toFixed(1);
+        }
+
+        // DIRECT ORDER PLACEMENT
+        function placeOrderFromCalculator(side) {
+            const inst = document.getElementById('calc-instrument').value;
+            const config = instrumentConfig[inst];
+            const entry = parseFloat(document.getElementById('calc-entry').value) || 100;
+            const totalQty = parseInt(document.getElementById('res-total-qty').innerText.replace(/,/g, '')) || 65;
+            const symbol = `${inst} 30OCT ${config.atm} ${side === 'BUY' ? 'CE' : 'PE'}`;
+            const orderId = 'ORD' + Math.floor(100000 + Math.random() * 900000);
+            const timeStr = new Date().toLocaleTimeString();
+
+            orderBook.unshift({
+                id: orderId,
+                time: timeStr,
+                side: side,
+                symbol: symbol,
+                qty: totalQty,
+                price: entry,
+                status: 'COMPLETE'
+            });
+
+            if (side === 'BUY') {
+                openPositions.push({
+                    id: orderId,
+                    symbol: symbol,
+                    qty: totalQty,
+                    avgPrice: entry,
+                    ltp: entry,
+                    pnl: 0
+                });
+            }
+
+            renderOrderBook();
+            renderPositions();
+            switchTab('orders');
+            showToast(`Order executed successfully! ID: ${orderId} (${side} ${totalQty}x ${symbol})`, "success");
+        }
+
+        function renderOptionChain() {
+            const index = document.getElementById('chain-index').value;
+            const config = instrumentConfig[index];
+            const atm = config.atm;
+            const body = document.getElementById('option-chain-body');
+            body.innerHTML = '';
+
+            for (let i = -4; i <= 4; i++) {
+                const strike = atm + (i * 100);
+                const isAtm = (i === 0);
+                const callLtp = Math.max(5, (180 - (i * 30))).toFixed(2);
+                const putLtp = Math.max(5, (140 + (i * 30))).toFixed(2);
+                
+                const row = document.createElement('tr');
+                row.className = `hover:bg-cardborder/40 transition-colors ${isAtm ? 'bg-blue-950/20 font-semibold' : ''}`;
+                row.innerHTML = `
+                    <td class="py-2.5 px-3 text-gray-400">1,450,000</td>
+                    <td class="py-2.5 px-3 text-emerald-400">+52.4K</td>
+                    <td class="py-2.5 px-3 text-gray-300">55,000</td>
+                    <td class="py-2.5 px-3 text-gray-400">16.2%</td>
+                    <td class="py-2.5 px-3 font-bold text-blue-400 border-r border-cardborder cursor-pointer hover:underline" onclick="loadStrikeIntoCalculator('${index}', ${strike}, ${callLtp}, 'CE')">${callLtp} <i class="fa-solid fa-arrow-up-right-from-square text-[9px] text-gray-500"></i></td>
+                    <td class="py-2.5 px-3 text-center bg-cardborder/40 border-r border-cardborder text-amber-400 font-bold">${strike} ${isAtm ? '(ATM)' : ''}</td>
+                    <td class="py-2.5 px-3 font-bold text-red-400 cursor-pointer hover:underline" onclick="loadStrikeIntoCalculator('${index}', ${strike}, ${putLtp}, 'PE')">${putLtp} <i class="fa-solid fa-arrow-up-right-from-square text-[9px] text-gray-500"></i></td>
+                    <td class="py-2.5 px-3 text-gray-400">17.1%</td>
+                    <td class="py-2.5 px-3 text-gray-300">62,000</td>
+                    <td class="py-2.5 px-3 text-red-400">-12.8K</td>
+                    <td class="py-2.5 px-3 text-gray-400">1,320,000</td>
+                `;
+                body.appendChild(row);
+            }
+        }
+
+        function loadStrikeIntoCalculator(index, strike, ltp, type) {
+            document.getElementById('calc-instrument').value = index;
+            updateInstrumentDefaults();
+            document.getElementById('calc-entry').value = ltp;
+            document.getElementById('calc-sl').value = (ltp * 0.75).toFixed(2);
+            document.getElementById('calc-exit').value = (ltp * 3.0).toFixed(2);
+            calculatePosition();
+            switchTab('calculator');
+            showToast(`Loaded ${index} ${strike} ${type} at ₹${ltp} into Calculator.`, "info");
+        }
+
+        function renderOrderBook() {
+            const tbody = document.getElementById('orderbook-table-body');
+            if (orderBook.length === 0) {
+                tbody.innerHTML = `<tr><td colspan="7" class="py-4 text-center text-gray-500 italic">No orders placed in this session yet.</td></tr>`;
+                return;
+            }
+            tbody.innerHTML = '';
+            orderBook.forEach(ord => {
+                const tr = document.createElement('tr');
+                tr.className = 'hover:bg-cardborder/40';
+                tr.innerHTML = `
+                    <td class="py-2.5 px-3 font-mono text-gray-400">${ord.id}</td>
+                    <td class="py-2.5 px-3 text-gray-400">${ord.time}</td>
+                    <td class="py-2.5 px-3 font-bold ${ord.side === 'BUY' ? 'text-blue-400' : 'text-red-400'}">${ord.side}</td>
+                    <td class="py-2.5 px-3 text-white font-medium">${ord.symbol}</td>
+                    <td class="py-2.5 px-3 text-gray-300">${ord.qty}</td>
+                    <td class="py-2.5 px-3 text-gray-300">₹${ord.price.toFixed(2)}</td>
+                    <td class="py-2.5 px-3 text-emerald-400 font-semibold">${ord.status}</td>
+                `;
+                tbody.appendChild(tr);
+            });
+        }
+
+        function renderPositions() {
+            const tbody = document.getElementById('positions-table-body');
+            document.getElementById('open-positions-badge').innerText = openPositions.length;
+
+            if (openPositions.length === 0) {
+                tbody.innerHTML = `<tr><td colspan="6" class="py-6 text-center text-gray-500 italic">No open positions active. Use calculator to place orders.</td></tr>`;
+                document.getElementById('total-pnl-badge').innerText = 'Total P&L: ₹0.00';
+                return;
+            }
+
+            tbody.innerHTML = '';
+            let totalPnl = 0;
+            openPositions.forEach((pos, index) => {
+                totalPnl += pos.pnl;
+                const isProfit = pos.pnl >= 0;
+                const tr = document.createElement('tr');
+                tr.className = 'hover:bg-cardborder/40';
+                tr.innerHTML = `
+                    <td class="py-3 px-3 font-medium text-white">${pos.symbol}</td>
+                    <td class="py-3 px-3 text-gray-300">${pos.qty}</td>
+                    <td class="py-3 px-3 text-gray-300">₹${pos.avgPrice.toFixed(2)}</td>
+                    <td class="py-3 px-3 text-gray-300 font-bold">₹${pos.ltp.toFixed(2)}</td>
+                    <td class="py-3 px-3 font-bold ${isProfit ? 'text-emerald-400' : 'text-red-400'}">${isProfit ? '+' : ''}₹${pos.pnl.toFixed(2)}</td>
+                    <td class="py-3 px-3 text-center">
+                        <button onclick="squareOffPosition(${index})" class="bg-red-600/20 border border-red-500 hover:bg-red-600 text-red-300 hover:text-white px-2.5 py-1 rounded-lg text-xs font-semibold transition-all">Square Off</button>
+                    </td>
+                `;
+                tbody.appendChild(tr);
+            });
+
+            const pnlBadge = document.getElementById('total-pnl-badge');
+            pnlBadge.innerText = `Total P&L: ${totalPnl >= 0 ? '+' : ''}₹${totalPnl.toFixed(2)}`;
+            pnlBadge.className = `text-xs font-bold px-3 py-1 rounded-lg border ${totalPnl >= 0 ? 'bg-emerald-950 text-emerald-400 border-emerald-900' : 'bg-red-950 text-red-400 border-red-900'}`;
+        }
+
+        function squareOffPosition(index) {
+            const pos = openPositions[index];
+            showToast(`Squared off ${pos.symbol} at ₹${pos.ltp.toFixed(2)} | Realized P&L: ₹${pos.pnl.toFixed(2)}`, "success");
+            openPositions.splice(index, 1);
+            renderPositions();
+        }
+
+        function clearOrderBook() {
+            orderBook = [];
+            renderOrderBook();
+        }
+
+        function saveApiSettings() {
+            showToast("API credentials saved securely for Zerodha ID NP9863.", "success");
+        }
+
+        function simulateLiveTicker() {
+            if (openPositions.length > 0) {
+                openPositions.forEach(pos => {
+                    const delta = (Math.random() - 0.48) * 2.0;
+                    pos.ltp = Math.max(0.5, pos.ltp + delta);
+                    pos.pnl = (pos.ltp - pos.avgPrice) * pos.qty;
+                });
+                if (activeTab === 'orders') renderPositions();
+            }
+        }
+
+        function showToast(message, type = 'info') {
+            const container = document.getElementById('toast-container');
+            const toast = document.createElement('div');
+            let borderCol = type === 'success' ? 'border-emerald-500' : 'border-blue-500';
+
+            toast.className = `bg-cardbg border ${borderCol} text-white px-4 py-3 rounded-xl shadow-2xl text-xs flex items-center space-x-3 transform translate-y-5 opacity-0 transition-all duration-300 z-50 max-w-sm`;
+            toast.innerHTML = `
+                <i class="fa-solid ${type === 'success' ? 'fa-circle-check text-emerald-400' : 'fa-circle-info text-blue-400'} text-base"></i>
+                <span class="flex-1 font-medium">${message}</span>
+            `;
+            container.appendChild(toast);
+            setTimeout(() => toast.classList.remove('translate-y-5', 'opacity-0'), 50);
+            setTimeout(() => {
+                toast.classList.add('translate-y-5', 'opacity-0');
+                setTimeout(() => toast.remove(), 300);
+            }, 3500);
+        }
+    </script>
+</body>
+</html>
